@@ -1,0 +1,35 @@
+networks:
+  elearning-network:
+
+services:
+  express-backend:
+    image: node:22-alpine
+    container_name: express-app
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "3000:3000"
+    environment:
+      CHOKIDAR_USEPOLLING: "true"
+    stdin_open: true
+    tty: true
+    command: npm run dev
+    networks:
+      - elearning-network
+
+  mysql:
+    image: mysql:8.0.36
+    container_name: mysql-elearning
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      TIMEZONE: UTC
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: root
+      MYSQL_PASSWORD: root
+    volumes:
+      - D:/mysql_data:/var/lib/mysql
+    networks:
+      - elearning-network

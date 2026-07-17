@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id              BigInt           @id @default(autoincrement())
+  name            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+  users           User[]
+  rolePermissions RolePermission[] 
+
+  @@map("roles")
+}
+
+model Permission {
+  id              BigInt           @id @default(autoincrement())
+  name            String
+  slug            String           @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+  rolePermissions RolePermission[] 
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       BigInt
+  permissionId BigInt
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  assignedAt   DateTime   @default(now()) 
+
+  @@id([roleId, permissionId]) 
+  @@index([roleId])
+  @@index([permissionId])
+  
+  @@map("role_permissions")
+}
+
+model User {
+  id            BigInt         @id @default(autoincrement())
+  email         String         @unique
+  password      String
+  roleId        BigInt         @default(1) 
+  role          Role           @relation(fields: [roleId], references: [id])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
+  refreshTokens RefreshToken[]
+  
+  @@index([roleId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        BigInt    @id @default(autoincrement())
+  jti       String    @unique
+  userId    BigInt    
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
