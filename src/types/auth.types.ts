@@ -4,7 +4,8 @@ import { SafeUser } from "./user.types";
 export interface RegisterInput {
   email: string;
   password: string;
-  role?: UserRole;
+  role?: Exclude<UserRole, "ADMIN">;
+  fullName?: string;
 }
 
 export interface LoginInput {
@@ -29,7 +30,7 @@ export interface RefreshResult {
 
 export interface AccessTokenPayload {
   id: string;
-  role: UserRole;
+  role: string;
 }
 
 export interface RefreshTokenPayload {

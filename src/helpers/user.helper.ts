@@ -1,23 +1,29 @@
 import { SafeUser } from "../types";
-import { UserWithRole } from "../types/prisma.types";
+import { UserWithRole, UserWithRoleAndPermissions } from "../types/prisma.types";
 
-const isUserRole = (name: string): name is SafeUser["role"] => {
-  return name === "STUDENT" || name === "TEACHER" || name === "ADMIN";
-};
-
-export const toSafeUser = (user: UserWithRole): SafeUser => {
-  const roleName = user.role.name;
-  if (!isUserRole(roleName)) {
-    throw new Error(`Invalid role name: ${roleName}`);
+const extractPermissions = (user: UserWithRole | UserWithRoleAndPermissions): string[] => {
+  if (!("rolePermissions" in user.role)) {
+    return [];
   }
 
+  return user.role.rolePermissions
+    .filter((item) => item.permission.deletedAt === null)
+    .map((item) => item.permission.slug);
+};
+
+export const toSafeUser = (user: UserWithRole | UserWithRoleAndPermissions): SafeUser => {
   return {
     id: user.id.toString(),
     email: user.email,
-    role: roleName,
+    fullName: user.fullName,
+    status: user.status,
+    role: user.role.name,
+    permissions: extractPermissions(user),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };
 };
 
 export const parseUserId = (id: string): bigint => BigInt(id);
+
+export const parseBigIntId = (id: string): bigint => BigInt(id);

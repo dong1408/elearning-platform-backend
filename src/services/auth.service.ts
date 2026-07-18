@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import userRepository from "../repositories/user.repository";
 import roleRepository from "../repositories/role.repository";
 import refreshTokenRepository from "../repositories/refreshToken.repository";
@@ -11,7 +10,7 @@ import {
   getRefreshTokenExpiry,
 } from "../utils/jwt";
 import AppError from "../utils/app-error";
-import { MESSAGES, HTTP_STATUS } from "../constants";
+import { MESSAGES, HTTP_STATUS, USER_STATUS, USER_ROLES } from "../constants";
 import {
   AuthResult,
   LoginInput,
@@ -20,6 +19,7 @@ import {
   RegisterInput,
 } from "../types";
 import { UserWithRole } from "../types/prisma.types";
+import { randomUUID } from "crypto";
 
 interface TokenPair {
   accessToken: string;
@@ -41,9 +41,22 @@ const createTokenPair = async (user: UserWithRole): Promise<TokenPair> => {
   return { accessToken, refreshToken };
 };
 
+const assertAccountUsable = (user: UserWithRole): void => {
+  if (user.deletedAt) {
+    throw new AppError(MESSAGES.AUTH.ACCOUNT_DELETED, HTTP_STATUS.UNAUTHORIZED);
+  }
+  if (user.status === USER_STATUS.BLOCKED) {
+    throw new AppError(MESSAGES.AUTH.ACCOUNT_BLOCKED, HTTP_STATUS.FORBIDDEN);
+  }
+};
+
 const authService = {
   register: async (input: RegisterInput): Promise<AuthResult> => {
-    const { email, password, role: roleName = "STUDENT" } = input;
+    const { email, password, fullName, role: roleName = USER_ROLES.STUDENT } = input;
+
+    if (roleName === USER_ROLES.ADMIN) {
+      throw new AppError(MESSAGES.AUTH.INVALID_ROLE, HTTP_STATUS.BAD_REQUEST);
+    }
 
     const exists = await userRepository.emailExists(email);
     if (exists) {
@@ -60,6 +73,7 @@ const authService = {
       email,
       password: hashedPassword,
       roleId: role.id,
+      fullName: fullName ?? null,
     });
 
     const { accessToken, refreshToken } = await createTokenPair(user);
@@ -73,12 +87,21 @@ const authService = {
     if (!user) {
       throw new AppError(MESSAGES.AUTH.INVALID_CREDENTIALS, HTTP_STATUS.UNAUTHORIZED);
     }
+
+    assertAccountUsable(user);
+
     const isMatch = await comparePassword(password, user.password);
     if (!isMatch) {
       throw new AppError(MESSAGES.AUTH.INVALID_CREDENTIALS, HTTP_STATUS.UNAUTHORIZED);
     }
-    const { accessToken, refreshToken } = await createTokenPair(user);
-    return { user: toSafeUser(user), accessToken, refreshToken };
+
+    const userWithPermissions = await userRepository.findByIdWithPermissions(user.id);
+    if (!userWithPermissions) {
+      throw new AppError(MESSAGES.AUTH.INVALID_CREDENTIALS, HTTP_STATUS.UNAUTHORIZED);
+    }
+
+    const { accessToken, refreshToken } = await createTokenPair(userWithPermissions);
+    return { user: toSafeUser(userWithPermissions), accessToken, refreshToken };
   },
 
   refresh: async (input: RefreshInput): Promise<RefreshResult> => {
@@ -96,10 +119,12 @@ const authService = {
       throw new AppError(MESSAGES.AUTH.REFRESH_TOKEN_REVOKED, HTTP_STATUS.UNAUTHORIZED);
     }
 
-    const user = await userRepository.findById(parseUserId(decoded.id));
+    const user = await userRepository.findByIdWithPermissions(parseUserId(decoded.id));
     if (!user || user.id !== storedToken.userId) {
       throw new AppError(MESSAGES.AUTH.INVALID_TOKEN, HTTP_STATUS.UNAUTHORIZED);
     }
+
+    assertAccountUsable(user);
 
     await refreshTokenRepository.revokeByJti(decoded.jti);
 

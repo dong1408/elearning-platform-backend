@@ -2,8 +2,20 @@ import { Request, Response, NextFunction } from "express";
 import prisma from "../config/database";
 import { verifyAccessToken } from "../utils/jwt";
 import AppError from "../utils/app-error";
-import { MESSAGES, HTTP_STATUS } from "../constants";
+import { MESSAGES, HTTP_STATUS, USER_STATUS } from "../constants";
 import { toSafeUser, parseUserId } from "../helpers/user.helper";
+
+const roleWithPermissionsInclude = {
+  role: {
+    include: {
+      rolePermissions: {
+        include: {
+          permission: true,
+        },
+      },
+    },
+  },
+} as const;
 
 export const authenticate = async (
   req: Request,
@@ -22,11 +34,15 @@ export const authenticate = async (
 
     const user = await prisma.user.findUnique({
       where: { id: parseUserId(decoded.id) },
-      include: { role: true },
+      include: roleWithPermissionsInclude,
     });
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       throw new AppError(MESSAGES.AUTH.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
+    }
+
+    if (user.status === USER_STATUS.BLOCKED) {
+      throw new AppError(MESSAGES.AUTH.ACCOUNT_BLOCKED, HTTP_STATUS.FORBIDDEN);
     }
 
     req.user = toSafeUser(user);

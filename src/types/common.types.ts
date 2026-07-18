@@ -1,5 +1,7 @@
 export type UserRole = "STUDENT" | "TEACHER" | "ADMIN";
 
+export type UserStatus = "ACTIVE" | "BLOCKED";
+
 export interface EnvConfig {
   NODE_ENV: string;
   PORT: number;
@@ -25,4 +27,16 @@ export interface ApiErrorResponse {
   success: false;
   message: string;
   errors?: ValidationErrorItem[];
+}
+
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  pagination: PaginationMeta;
 }

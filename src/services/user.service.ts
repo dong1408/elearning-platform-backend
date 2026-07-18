@@ -6,7 +6,7 @@ import { toSafeUser, parseUserId } from "../helpers/user.helper";
 
 const userService = {
   getProfile: async (userId: string): Promise<SafeUser> => {
-    const user = await userRepository.findById(parseUserId(userId));
+    const user = await userRepository.findByIdWithPermissions(parseUserId(userId));
     if (!user) {
       throw new AppError(MESSAGES.USER.NOT_FOUND, HTTP_STATUS.NOT_FOUND);
     }
